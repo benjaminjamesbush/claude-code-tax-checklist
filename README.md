@@ -6,7 +6,7 @@ A Claude Code agent that scans your historical tax documents and generates a com
 
 If you've accumulated years of tax documents in folders, this agent will:
 
-1. **Scan** every PDF across all your year folders
+1. **Scan** every PDF in your tax documents directory (any folder structure)
 2. **Identify** the form type, institution, and account for each document — including opening and visually reading scanned PDFs that have ambiguous filenames
 3. **Deduplicate** across years to find every unique document type you've historically received
 4. **Generate** a Markdown checklist organized by category with year ranges, so you know exactly what to expect and gather
@@ -26,30 +26,23 @@ Every year you need to collect the same tax documents — 1099s from brokerages,
 
 ## Setup
 
-### 1. Organize Your Tax Documents
+### 1. Gather Your Tax Documents
 
-Put your historical tax documents in a directory with year-based subfolders:
+Put your historical tax documents (PDFs) in a single directory. The agent handles any folder structure — year-based subfolders, category folders, flat directory, or any combination. For example:
 
 ```
 tax-documents/
-  2018/
+  2023/
     robinhood 1099.pdf
     mortgage 1098.pdf
-    ...
-  2019/
-    estimated payments/
-      fed-q1.pdf
-      ca-q1.pdf
+  2024/
     bank of america.pdf
     scanned docs.pdf
-    ...
-  2020/
-    ...
-  2024/
-    ...
+  misc/
+    old receipts.pdf
 ```
 
-Subfolder names should be the tax year (e.g., `2020`, `2021`). Files within can have any name — the agent handles both clearly-named files and ambiguous ones.
+Files can have any name — the agent handles both clearly-named files and ambiguous ones.
 
 ### 2. Clone This Repo
 

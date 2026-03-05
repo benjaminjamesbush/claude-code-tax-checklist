@@ -4,7 +4,7 @@ You are helping a user build a comprehensive, deduplicated tax document checklis
 
 ## Overview
 
-The user has tax documents organized in year folders (e.g., `2020/`, `2021/`, `2024/`). Many PDFs have clear filenames that identify their contents (e.g., `robinhood 1099.pdf`), but many others are ambiguous (e.g., `packet 1 2023.pdf`, `Misc.pdf`, `scanned docs.pdf`). Your job is to examine everything and produce a checklist.
+The user has tax documents stored as PDFs — possibly organized in year folders, by category, in a flat directory, or any other structure. Do not assume any particular organization. Many PDFs will have clear filenames that identify their contents (e.g., `robinhood 1099.pdf`), but many others will be ambiguous (e.g., `packet 1.pdf`, `Misc.pdf`, `scanned docs.pdf`). Your job is to examine everything and produce a checklist.
 
 **Nothing is assumed irrelevant.** Dental receipts, payment confirmations, state notices, letters, and bundled packets may all contain checklist-worthy items.
 
@@ -12,11 +12,11 @@ The user has tax documents organized in year folders (e.g., `2020/`, `2021/`, `2
 
 ## Step 1: Catalog All PDFs
 
-Scan all year folders recursively for `.pdf` files:
+Ask the user where their tax documents are stored, then recursively scan for all `.pdf` files:
 
 ```python
 import os
-base = "<TAX_DOCUMENTS_DIR>"  # User will specify this
+base = "<USER_SPECIFIED_DIR>"
 all_pdfs = []
 for root, dirs, files in os.walk(base):
     for f in files:
@@ -24,7 +24,7 @@ for root, dirs, files in os.walk(base):
             all_pdfs.append(os.path.join(root, f))
 ```
 
-Print the full list with relative paths. Count total files.
+Print the full list with relative paths. Count total files. Note the directory structure — files may be in year folders, category folders, flat, or any combination. Adapt accordingly.
 
 ## Step 2: Classify Files as Clear vs. Ambiguous
 
@@ -35,9 +35,9 @@ Print the full list with relative paths. Count total files.
 
 **Ambiguous filenames** lack clear form type identification and require visual examination:
 - Generic names: `Misc`, `packet`, `scanned docs`, `tax scans`
-- Institution only: `bank of america.pdf`, `bitwise.pdf`, `blue shield.pdf`
-- Descriptions without form types: `Beanca Chu DDS`, `supplimental property tax`, `negligence response`
-- Payment references: `payment 12-22-2019.pdf`, `cp2000 Payment Confirmation.pdf`
+- Institution only without form type: `bank of america.pdf`, `blue shield.pdf`
+- Descriptions without form types: `dental receipt`, `property tax`, `negligence response`
+- Vague payment references: `payment 12-22-2019.pdf`, `cp2000 Payment Confirmation.pdf`
 
 Use substring matching (case-insensitive) against the relative file path to classify. When in doubt, classify as ambiguous — it's better to examine a file unnecessarily than to skip one.
 
@@ -75,7 +75,7 @@ import fitz
 import os
 import re
 
-base = "<TAX_DOCUMENTS_DIR>"
+base = "<USER_SPECIFIED_DIR>"
 outdir = os.path.join(base, '.tmp_pngs')
 os.makedirs(outdir, exist_ok=True)
 
@@ -89,13 +89,13 @@ for relpath in ambiguous_files:  # List from Step 2
         continue
     try:
         doc = fitz.open(fullpath)
-        year = relpath.split('/')[0].split('\\')[0]
-        fname = os.path.splitext(os.path.basename(relpath))[0]
-        sanitized = re.sub(r'[^a-zA-Z0-9_-]', '_', fname)[:50]
+        # Build a descriptive prefix from the relative path
+        parts = os.path.normpath(relpath).replace(os.sep, '_')
+        sanitized = re.sub(r'[^a-zA-Z0-9_-]', '_', os.path.splitext(parts)[0])[:60]
         for i in range(len(doc)):
             page = doc[i]
             pix = page.get_pixmap(dpi=100)
-            png_name = f'{year}_{sanitized}_p{i+1:02d}.png'
+            png_name = f'{sanitized}_p{i+1:02d}.png'
             pix.save(os.path.join(outdir, png_name))
             total_pages += 1
         doc.close()
@@ -167,18 +167,19 @@ Extract every unique **institution + form type + account** combination.
 
 ### Deduplicate Across Years
 
-The same document type appearing in multiple years = one checklist item with a year range.
+The same document type appearing in multiple years = one checklist item with a year range. Determine the tax year from folder names, filenames, or the document contents themselves.
 
-Example: If `Robinhood 1099` appears in 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024 → one item with `*Seen: 2016–2024*`
+Example: If `Robinhood 1099` appears across 2016–2024 → one item with `*Seen: 2016–2024*`
 
 ### Detect Institutional Transitions
 
-Financial institutions merge and rename. Common patterns:
-- Brokerage acquisitions (e.g., TD Ameritrade → Schwab, E*Trade → Morgan Stanley)
-- Mortgage servicer changes (same loan, different servicer each year)
+Financial institutions merge, rebrand, and transfer accounts. Watch for:
+- Brokerage acquisitions (same account, new institution name)
+- Mortgage servicer transfers (same loan, different servicer issuing the 1098)
 - Account number format changes during transitions
+- Documents from two different institutions in the same year for the same account
 
-Note these in the checklist so users know that differently-named items may be the same account.
+When detected, note these in the checklist so the user understands that differently-named items may represent the same account.
 
 ### Write the Checklist
 
@@ -227,9 +228,9 @@ Deduplicated from [N] years of tax records ([RANGE]). Gather these documents for
 ---
 
 ## Notes
-- [Institutional transition notes]
-- [Filing state history]
-- [Other context]
+- [Institutional transitions detected]
+- [Filing states, if multiple]
+- [Any other relevant context discovered during examination]
 
 ## Verification
 - [N] ambiguous PDF files examined ([N] pages total)
@@ -239,17 +240,20 @@ Deduplicated from [N] years of tax records ([RANGE]). Gather these documents for
 
 ### Categories
 
-Use these categories (add or remove as appropriate for the user's situation):
-- **Investments & Brokerage** — 1099 Composites/Consolidated, K-1s
+Create categories based on what you actually find in the user's documents. Common categories include:
+- **Income** — W-2s, 1099-MISC, 1099-NEC, 1099-G
+- **Investments & Brokerage** — 1099 Composites/Consolidated, K-1s, 1099-B, 1099-DIV
 - **Banking — Interest Income** — 1099-INT from banks
-- **Retirement — IRA Distributions** — 1099-R forms
-- **Mortgage & Property** — 1098, property tax bills, supplemental taxes, escrow statements
-- **Health Insurance** — 1095-B, 1095-A, 1095-C
-- **State Tax Refunds** — 1099-G
+- **Retirement** — 1099-R, 5498, pension statements
+- **Mortgage & Property** — 1098, property tax bills, escrow statements
+- **Health Insurance** — 1095-A, 1095-B, 1095-C
+- **Education** — 1098-T, 1098-E
 - **Charitable Contributions** — donation receipts (cash and non-cash)
-- **Estimated Tax Payments** — federal (IRS), state payment confirmations
-- **Tax Balance Due Payments & Notices** — CP2000 responses, FTB notices, underpayment payments
+- **Estimated Tax Payments** — federal, state, local payment confirmations
+- **Tax Notices & Balance Due Payments** — IRS/state notices, underpayment payments
 - **Items That May No Longer Apply** — legacy items with `(check if applicable)` flag
+
+Only include categories relevant to the user's documents. Add new categories as needed.
 
 ### Flagging Legacy Items
 
