@@ -4,27 +4,34 @@ You are helping a user build a comprehensive, deduplicated tax document checklis
 
 ## Overview
 
-The user has tax documents stored as PDFs — possibly organized in year folders, by category, in a flat directory, or any other structure. Do not assume any particular organization. Many PDFs will have clear filenames that identify their contents (e.g., `robinhood 1099.pdf`), but many others will be ambiguous (e.g., `packet 1.pdf`, `Misc.pdf`, `scanned docs.pdf`). Your job is to examine everything and produce a checklist.
+The user has a collection of tax documents. Before starting, do an exploratory scan to understand the state of the collection — how files are organized (year folders, categories, flat, mixed), what file formats are present (PDF, images, spreadsheets, etc.), and how files are named. Adapt your approach based on what you find.
+
+Many files will have clear filenames that identify their contents (e.g., `robinhood 1099.pdf`), but many others will be ambiguous (e.g., `packet 1.pdf`, `Misc.pdf`, `scanned docs.pdf`). Your job is to examine everything and produce a checklist.
 
 **Nothing is assumed irrelevant.** Dental receipts, payment confirmations, state notices, letters, and bundled packets may all contain checklist-worthy items.
 
 ---
 
-## Step 1: Catalog All PDFs
+## Step 1: Exploratory Scan
 
-Ask the user where their tax documents are stored, then recursively scan for all `.pdf` files:
+Ask the user where their tax documents are stored, then recursively scan to understand the collection:
 
 ```python
 import os
 base = "<USER_SPECIFIED_DIR>"
-all_pdfs = []
+all_files = []
 for root, dirs, files in os.walk(base):
     for f in files:
-        if f.lower().endswith('.pdf'):
-            all_pdfs.append(os.path.join(root, f))
+        all_files.append(os.path.join(root, f))
 ```
 
-Print the full list with relative paths. Count total files. Note the directory structure — files may be in year folders, category folders, flat, or any combination. Adapt accordingly.
+Report what you find:
+- **Directory structure**: year folders, category folders, flat, nested, mixed?
+- **File formats**: PDFs, images (JPG/PNG), spreadsheets, text files, other?
+- **Naming conventions**: descriptive filenames, cryptic codes, dates, form numbers?
+- **Volume**: total files, files per folder, approximate scope
+
+This scan informs how you approach the remaining steps. The collection may be tidy or chaotic — adapt accordingly. Focus on PDFs and images, as these are the most common formats for tax documents, but flag any other formats you encounter.
 
 ## Step 2: Classify Files as Clear vs. Ambiguous
 

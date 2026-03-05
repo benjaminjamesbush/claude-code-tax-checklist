@@ -6,7 +6,7 @@ A Claude Code agent that scans your historical tax documents and generates a com
 
 If you've accumulated years of tax documents in folders, this agent will:
 
-1. **Scan** every PDF in your tax documents directory (any folder structure)
+1. **Scan** your tax documents directory to understand how it's organized and what file types are present
 2. **Identify** the form type, institution, and account for each document — including opening and visually reading scanned PDFs that have ambiguous filenames
 3. **Deduplicate** across years to find every unique document type you've historically received
 4. **Generate** a Markdown checklist organized by category with year ranges, so you know exactly what to expect and gather
@@ -28,7 +28,7 @@ Every year you need to collect the same tax documents — 1099s from brokerages,
 
 ### 1. Gather Your Tax Documents
 
-Put your historical tax documents (PDFs) in a single directory. The agent handles any folder structure — year-based subfolders, category folders, flat directory, or any combination. For example:
+Put your historical tax documents in a single directory. The agent will do an exploratory scan to figure out how things are organized and what file types are present (PDFs, images, etc.). Any folder structure works — for example:
 
 ```
 tax-documents/
@@ -107,7 +107,7 @@ The agent will follow the instructions in `CLAUDE.md` automatically.
 
 The agent follows a multi-step process described in `CLAUDE.md`:
 
-1. **Filename scan** — Catalogs all PDFs and classifies them as "clear" (form type obvious from filename) or "ambiguous"
+1. **Exploratory scan** — Surveys the directory structure, file types, and naming conventions, then classifies files as "clear" (form type obvious from filename) or "ambiguous"
 2. **Text extraction** — Tries extracting text from ambiguous PDFs (works for digitally-generated documents)
 3. **Visual examination** — For scanned PDFs with no extractable text, renders each page to a small PNG (850x1100px at 100 DPI) and uses isolated subagents to visually identify each page's contents
 4. **Compilation** — Merges all findings, deduplicates across years, and writes the categorized checklist
