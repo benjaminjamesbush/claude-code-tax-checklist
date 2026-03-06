@@ -1,6 +1,6 @@
 # claude-code-tax-checklist
 
-A Claude Code skill that scans your historical tax documents and generates a comprehensive checklist of everything you need to gather for your tax preparer.
+A Claude Code skill that scans your historical tax documents and generates a comprehensive checklist of everything you need to gather for tax season.
 
 ## What It Does
 
@@ -15,66 +15,72 @@ If you've accumulated years of tax documents in folders, this skill will:
 
 Every year you need to collect the same tax documents — 1099s from brokerages, 1098 from your mortgage company, K-1s from partnerships, etc. But which ones? If you have years of historical records, the answer is already in your files. This skill reads them all and tells you what to look for.
 
-## Prerequisites
+## Getting Started
 
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and configured
-- Python 3.7+
-- PyMuPDF (auto-installed by the skill if missing)
+### 1. Install Claude Code
 
-## Setup
+You'll need a [Claude subscription](https://claude.com/pricing) or [Anthropic Console](https://console.anthropic.com/) account. Full install instructions at [code.claude.com/docs](https://code.claude.com/docs), reproduced here for convenience.
 
-### 1. Gather Your Tax Documents
+**macOS, Linux, WSL:**
 
-Put your historical tax documents in a single directory. The skill will do an exploratory scan to figure out how things are organized and what file types are present (PDFs, images, etc.). Any folder structure works — for example:
-
-```
-tax-documents/
-  2023/
-    robinhood 1099.pdf
-    mortgage 1098.pdf
-  2024/
-    bank of america.pdf
-    scanned docs.pdf
-  misc/
-    old receipts.pdf
+```bash
+curl -fsSL https://claude.ai/install.sh | bash
 ```
 
-Files can have any name — the skill examines every page of every file regardless of filename.
+**Windows PowerShell:**
 
-### 2. Clone This Repo and Add Your Documents
+> **Windows requires [Git for Windows](https://git-scm.com/downloads/win).** Install it first if you don't have it.
+
+```powershell
+irm https://claude.ai/install.ps1 | iex
+```
+
+### 2. Clone This Repo
 
 ```
 git clone https://github.com/your-username/claude-code-tax-checklist.git
+```
+
+### 3. Add Your Tax Documents
+
+**Copy** (not move) your tax documents into the `tax-documents/` folder inside the cloned directory. Always keep your originals safe elsewhere. Year folders, flat files, any structure works.
+
+### 4. Launch Claude Code
+
+```
 cd claude-code-tax-checklist
+claude --dangerously-skip-permissions
 ```
 
-Copy or move your tax documents into this directory. Year folders, flat files, any structure works.
+The `--dangerously-skip-permissions` flag is recommended so the skill can run without prompting for approval at each step.
 
-### 3. Run Claude Code
+Now run `/tax-checklist` and the skill will handle the rest.
 
-```
-cd claude-code-tax-checklist
-claude
-```
+All other dependencies (Python, PyMuPDF, Pillow, etc.) are auto-installed as needed.
 
-Then run:
+## Supported File Types
 
-```
-/tax-checklist
-```
-
-The skill will handle the rest.
+| Format | Extensions | How it's processed |
+|---|---|---|
+| PDFs | .pdf | Rendered page-by-page to PNG |
+| Images | .jpg .jpeg .png .gif .tiff .tif .bmp .webp .avif .heic .heif | Converted to PNG, resized if needed |
+| Text | .txt .csv .md .json .log | Copied as text |
+| HTML/web | .html .htm .mhtml .mht .wbl | Copied as text |
+| Rich text | .rtf | Copied as text |
+| Spreadsheets | .xlsx .xls | Converted to CSV text |
+| Word docs | .docx .doc | Text extracted |
+| Archives | .zip | Extracted, then contents processed |
 
 ## What to Expect
 
-- **Time**: Depends on total page count across all PDFs. A typical run with ~150 files takes 15-30 minutes.
-- **Cost**: The skill uses haiku-tier subagents for image reading to minimize cost. Most of the token usage is in the visual examination step.
+- **Time**: Depends on total file and page count. A typical run with ~150 files takes 15-30 minutes.
+- **Cost**: The skill uses haiku-tier subagents for file examination to minimize cost.
 - **Output**: A single Markdown file with checkbox items, organized by category.
 
 ## Example Output
 
 ```markdown
-# 2025 Tax Document Checklist
+# Tax Document Checklist
 
 ## Investments & Brokerage
 
@@ -103,33 +109,33 @@ The skill will handle the rest.
 The skill follows a multi-step process:
 
 1. **Exploratory scan** — Runs `scripts/scan.py` to survey the directory structure, file types, and naming conventions
-2. **Rendering** — Runs `scripts/render.py` to render every page of every PDF to a small PNG (850x1100px at 100 DPI). Text extraction is not used — even digital PDFs may have bundled forms or content not captured by text layers.
-3. **Visual examination** — Isolated subagents visually read each PNG and identify the form type, institution, account holder, and tax year. Every page of every file is examined — filenames are not trusted.
+2. **Preparation** — Runs `scripts/prepare.py` to convert all files into subagent-readable formats: PDFs and images become PNGs, everything else becomes text. Only installs packages needed for the file types found.
+3. **Examination** — Isolated subagents read each prepared file (one agent per file) and identify the form type, institution, account holder, and tax year. Filenames are not trusted.
 4. **Compilation** — Merges all findings, deduplicates across years, and writes the categorized checklist
-5. **Cleanup** — Runs `scripts/cleanup.py` to delete temporary PNG files
 
-The visual examination step uses subagents (separate Claude instances) to avoid accumulating images in the main conversation context, which would cause memory issues.
+Prepared files are kept in `.tmp_prepared/` with a `manifest.txt` mapping each output back to its source, so follow-up questions can reference specific documents.
 
 ## Project Structure
 
 ```
 claude-code-tax-checklist/
-├── CLAUDE.md                              # Minimal project config
+├── CLAUDE.md                              # Project config
 ├── README.md                              # This file
+├── .gitignore                             # Ignores tax-documents/ and temp dirs
+├── tax-documents/                         # Your tax documents go here (any structure)
 └── .claude/
     └── skills/
         └── tax-checklist/
             ├── SKILL.md                   # Skill definition and process instructions
             └── scripts/
                 ├── scan.py                # Step 1: Exploratory directory scan
-                ├── render.py              # Step 2: Render PDFs to PNGs via PyMuPDF
-                └── cleanup.py             # Step 5: Delete temporary PNGs
+                ├── prepare.py             # Step 2: Convert all files for examination
+                └── cleanup.py             # Manual cleanup (only when user requests)
 ```
 
 ## Limitations
 
-- **Scanned document quality**: Very low-quality scans may be difficult to read. The skill will flag these rather than skip them.
-- **Multi-document PDFs**: Some PDFs bundle multiple forms (e.g., a 1098 and 1099-INT in one file). The skill examines every page to catch these.
+- **Scanned document quality**: Very low-quality scans may be difficult to read. Results depend on what the AI can make out.
 - **Not tax advice**: This tool identifies documents — it doesn't interpret tax implications or tell you what to file.
 
 ## License

@@ -5,7 +5,7 @@ description: Generate a comprehensive, deduplicated tax document checklist by sc
 
 # Tax Document Checklist Generator
 
-Build a comprehensive, deduplicated tax document checklist from historical tax records. The goal is to identify every unique document type (form + institution + account) the user should expect to gather for their upcoming tax filing.
+Build a comprehensive, deduplicated tax document checklist from historical tax records in the `tax-documents/` directory. The goal is to identify every unique document type (form + institution + account) the user should expect to gather for their upcoming tax filing. Only process files inside `tax-documents/` — do not scan or process any other files in the project.
 
 ## Core Principles
 
@@ -136,7 +136,7 @@ Common categories: Income (W-2, 1099-MISC, 1099-NEC, 1099-G), Investments & Brok
 ```markdown
 # Tax Document Checklist
 
-Deduplicated from [N] years of tax records ([RANGE]). Gather these documents for your tax preparer.
+Deduplicated from [N] years of tax records ([RANGE]). Gather these documents for tax season.
 
 ---
 

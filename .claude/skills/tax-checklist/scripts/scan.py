@@ -12,7 +12,7 @@ import os
 import sys
 from collections import defaultdict
 
-base = sys.argv[1] if len(sys.argv) > 1 else os.getcwd()
+base = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.getcwd(), 'tax-documents')
 
 all_files = []
 pdf_files = []

@@ -28,7 +28,7 @@ import subprocess
 import sys
 import zipfile
 
-base = sys.argv[1] if len(sys.argv) > 1 else os.getcwd()
+base = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.getcwd(), 'tax-documents')
 outdir = os.path.join(base, '.tmp_prepared')
 os.makedirs(outdir, exist_ok=True)
 

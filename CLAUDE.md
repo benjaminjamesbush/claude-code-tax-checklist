@@ -8,5 +8,4 @@ Run `/tax-checklist` to generate a checklist. The skill will scan the current wo
 
 ## Prerequisites
 
-- Python 3.7+
-- PyMuPDF (auto-installed by the skill if missing)
+All dependencies are auto-installed as needed.
