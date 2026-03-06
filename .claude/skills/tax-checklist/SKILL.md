@@ -33,34 +33,39 @@ Review the output and report:
 
 This scan informs how you approach the remaining steps. The collection may be tidy or chaotic — adapt accordingly.
 
-## Step 2: Render All PDF Pages to Small PNGs
+## Step 2: Prepare All Files for Examination
 
-**Do not open or read any files during this step.** Only render PDFs to PNGs. Reading file contents here will overflow the context window.
+**Do not open or read any files during this step.** Only run the prepare script. Reading file contents here will overflow the context window.
 
-Run the render script:
+Run the prepare script:
 
 ```
-python ${CLAUDE_SKILL_DIR}/scripts/render.py
+python ${CLAUDE_SKILL_DIR}/scripts/prepare.py
 ```
 
-This renders **every page of every PDF** at `dpi=100` (~850x1100px) into a `.tmp_pngs/` directory. The script will auto-install PyMuPDF if not present.
+This processes every file into a `.tmp_prepared/` directory in one of two formats:
+- **PNG** — PDF pages rendered at `dpi=100` (~850x1100px), images converted and resized
+- **TXT** — text extracted from spreadsheets, Word docs, or copied from text/HTML/RTF files
 
-**Why PNGs?** Claude Code's Read tool can view images, but:
-- Direct PDF reading renders pages as oversized images (>2000px) that crash the context
-- Rendering at `dpi=100` produces ~850x1100px images — safely under the limit
-- Each PNG is small enough for a subagent to process without context issues
+The script auto-installs only the packages needed based on file types found:
+- PDFs → PyMuPDF
+- Images (JPG, PNG, GIF, TIFF, BMP, WEBP, AVIF, HEIC, HEIF) → Pillow + format plugins
+- XLSX → openpyxl, XLS → xlrd
+- DOCX → python-docx, DOC → doc2txt
+- Text/CSV/MD/JSON/HTML/MHTML/RTF → built-in (no install needed)
+- ZIP files → extracted first, then contents processed
 
-**Why subagents?** Images accumulate in the main conversation context. Using subagents provides isolation — each agent gets its own context with only the images it needs.
+**Why subagents?** Images and even text files accumulate in the main conversation context. Using subagents provides isolation — each agent gets its own context with only the file it needs.
 
-Record the total page count from the script output — you need this for verification.
+Record the total output count from the script — you need this for verification.
 
 ## Step 3: Visual Examination via Subagents
 
 **Do not read any PNG files in the main conversation context.** Use subagents for all image reading. Reading images here will overflow the context window.
 
-Launch one subagent per PNG — one agent, one page. Run 3 subagents in parallel for throughput.
+Launch one subagent per file in `.tmp_prepared/` — one agent, one file. Run 3 subagents in parallel for throughput.
 
-### Subagent Prompt Template
+### Subagent Prompt Template (PNG files)
 
 ```
 Read the following PNG image of a scanned tax document page and identify:
@@ -75,11 +80,26 @@ File: <path_to_png>
 Return a brief structured summary of the page. Be concise.
 ```
 
+### Subagent Prompt Template (TXT files)
+
+```
+Read the following text extracted from a tax document and identify:
+- Form type / document type (e.g., "1099-INT", "dental receipt", "payment confirmation")
+- Institution / source
+- Person / account holder
+- Tax year
+- Any other tax-relevant details (dollar amounts, account numbers, deadlines)
+
+File: <path_to_txt>
+
+Return a brief structured summary. Be concise.
+```
+
 Use `model: haiku` for subagents to minimize cost — form identification doesn't require the most capable model.
 
 ### Tracking
 Maintain a running tally:
-- Expected pages (from Step 2 render count)
+- Expected outputs (from Step 2 output count)
 - Examined pages (from subagent results)
 - These MUST match at the end. If they don't, re-launch subagents and troubleshoot as needed — never read images directly in the main context.
 
@@ -139,11 +159,11 @@ Deduplicated from [N] years of tax records ([RANGE]). Gather these documents for
 - [Any other relevant context discovered during examination]
 
 ## Verification
-- [N] PDF files rendered and visually examined ([N] pages total)
+- [N] files processed, [N] outputs examined (PNGs + TXTs)
 - Every page visually inspected — zero pages skipped
 ```
 
-**Do not delete the `.tmp_pngs/` directory.** The user may have follow-up questions that require re-examining specific pages. The directory contains a `manifest.txt` mapping each PNG back to its source PDF and page number.
+**Do not delete the `.tmp_prepared/` directory.** The user may have follow-up questions that require re-examining specific files. The directory contains a `manifest.txt` mapping each output (PNG or TXT) back to its source file.
 
 ### Flagging Legacy Items
 
@@ -156,15 +176,14 @@ Do NOT remove them — the user may still need them.
 
 ## Error Handling — ZERO Tolerance for Silent Failures
 
-- If a PDF fails to render: try alternative DPI, check file corruption, but **never skip it**
-- If a subagent fails to read an image: retry with a fresh subagent, re-render at different DPI, but **never skip it**
+- If a file fails to process: check the error output from the prepare script, troubleshoot, but **never skip it**
+- If a subagent fails to read a file: retry with a fresh subagent, but **never skip it**
 - If a file path is wrong (special characters, wrong casing): search for the correct path using `os.walk`, but **never skip it**
-- **Every single page of every PDF must be examined.** If something can't be examined, stop and report the failure explicitly — do not continue as if it was handled.
+- **Every single output in `.tmp_prepared/` must be examined.** If something can't be examined, stop and report the failure explicitly — do not continue as if it was handled.
 
 ## Technical Notes
 
-- **PyMuPDF import**: `import fitz` (not `import pymupdf`)
 - **Shell safety**: Filenames may contain `$`, `%`, spaces, parentheses, apostrophes, commas. Always use Python for file operations, not shell commands.
-- **PDF page counting**: `len(fitz.open(path))` gives total pages
 - **Image size at dpi=100**: Standard US letter (8.5x11") renders to ~850x1100px. This is safely under Claude's ~2000px image processing limit.
 - **Scanned vs. digital PDFs**: Many personal tax documents are scans (photos of paper). Even digital PDFs may have content (stamps, images, bundled forms) not captured by text extraction. Visual examination of every page avoids missing anything.
+- **Package installs**: The prepare script only installs packages for file types that actually exist in the collection. No unnecessary dependencies.
