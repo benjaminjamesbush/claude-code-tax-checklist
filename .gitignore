@@ -1,0 +1,6 @@
+# User's tax documents (copied in for testing)
+/tax-documents/
+
+# Temporary processing directories
+.tmp_prepared/
+.tmp_zip_extracted/
