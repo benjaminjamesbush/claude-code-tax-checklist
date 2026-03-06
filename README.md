@@ -38,7 +38,7 @@ irm https://claude.ai/install.ps1 | iex
 ### 2. Clone This Repo
 
 ```
-git clone https://github.com/your-username/claude-code-tax-checklist.git
+git clone https://github.com/benjaminjamesbush/claude-code-tax-checklist.git
 ```
 
 ### 3. Add Your Tax Documents
