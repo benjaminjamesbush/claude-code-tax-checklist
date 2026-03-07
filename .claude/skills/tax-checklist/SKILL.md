@@ -160,38 +160,53 @@ After all subagents complete, programmatically verify 100% coverage:
 
 ## Step 4: Compile and Write Checklist
 
-### Merge All Findings
+**Do not read findings files in the main context.** Delegate compilation to a subagent with a fresh context window.
 
-Read all `.findings.txt` files from `.tmp_prepared/findings/`. These contain the structured results from every subagent examination.
+### Merge Findings into One File
 
-Extract every unique **institution + form type + account** combination.
+Concatenate all individual findings into a single file:
 
-### Deduplicate Across Years
+```
+cat tax-documents/.tmp_prepared/findings/*.findings.txt > tax-documents/.tmp_prepared/findings_merged.txt
+```
 
-The same document type appearing in multiple years = one checklist item with a year range. Deduplicate by institution + form type + account.
+### Launch Compilation Subagent
 
-Example: If `Robinhood 1099` appears across 2016–2024 → one item with `*Seen: 2016–2024*`
+Launch a single subagent to read the merged findings and write the checklist. Use `model: sonnet` — compilation requires more reasoning than examination.
 
-### Detect Institutional Transitions
+```
+Read the file tax-documents/.tmp_prepared/findings_merged.txt, which contains
+structured findings from examining every page of a tax document collection.
 
-Financial institutions merge, rebrand, and transfer accounts. Watch for:
-- Brokerage acquisitions (same account, new institution name)
-- Mortgage servicer transfers (same loan, different servicer issuing the 1098)
-- Account number format changes during transitions
-- Documents from two different institutions in the same year for the same account
+Your task:
+1. Extract every unique institution + form type + account combination
+2. Deduplicate across years — same document type in multiple years = one checklist
+   item with a year range (e.g., "Seen: 2016–2024")
+3. Detect institutional transitions — brokerages merge, mortgage servicers change,
+   accounts transfer. Note these so the user understands differently-named items
+   may be the same account.
+4. Flag legacy items — anything last seen more than 3 years ago goes in
+   "Items That May No Longer Apply" with *(last seen YYYY — check if applicable)*
+5. Write the checklist to tax-documents/TAX_CHECKLIST.md
 
-When detected, note these in the checklist so the user understands that differently-named items may represent the same account.
+Output format: Markdown with checkbox items. Categories are examples — adapt based
+on what you find. Only include categories relevant to the documents.
 
-### Write the Checklist
+Common categories: Income (W-2, 1099-MISC, 1099-NEC, 1099-G), Investments &
+Brokerage (1099 Composites, K-1s, 1099-B, 1099-DIV), Banking (1099-INT),
+Retirement (1099-R, 5498), Mortgage & Property (1098, property tax), Health
+Insurance (1095-A/B/C), Education (1098-T, 1098-E), Charitable Contributions,
+Estimated Tax Payments, Tax Notices & Balance Due Payments, Items That May No
+Longer Apply.
 
-Output format: Markdown file with checkbox items. Categories are examples — adapt based on what you actually find. Only include categories relevant to the user's documents, and add new ones as needed.
+If any document seems unimportant, include it in an appendix rather than omitting.
 
-Common categories: Income (W-2, 1099-MISC, 1099-NEC, 1099-G), Investments & Brokerage (1099 Composites, K-1s, 1099-B, 1099-DIV), Banking (1099-INT), Retirement (1099-R, 5498), Mortgage & Property (1098, property tax), Health Insurance (1095-A/B/C), Education (1098-T, 1098-E), Charitable Contributions, Estimated Tax Payments, Tax Notices & Balance Due Payments, Items That May No Longer Apply.
+Use this template:
 
-```markdown
 # Tax Document Checklist
 
-Deduplicated from [N] years of tax records ([RANGE]). Gather these documents for tax season.
+Deduplicated from [N] years of tax records ([RANGE]). Gather these documents
+for tax season.
 
 ---
 
@@ -218,14 +233,9 @@ Deduplicated from [N] years of tax records ([RANGE]). Gather these documents for
 - Every page visually inspected — zero pages skipped
 ```
 
+After the compilation subagent finishes, confirm that `TAX_CHECKLIST.md` was written and report the summary to the user.
+
 **Do not delete the `.tmp_prepared/` directory.** The user may have follow-up questions that require re-examining specific files. The directory contains a `manifest.txt` mapping each output (PNG or TXT) back to its source file.
-
-### Flagging Legacy Items
-
-Items last seen more than 3 years ago should be moved to "Items That May No Longer Apply" with a note like:
-`*(last seen 2016 — check if applicable)*`
-
-Do NOT remove them — the user may still need them.
 
 ---
 
