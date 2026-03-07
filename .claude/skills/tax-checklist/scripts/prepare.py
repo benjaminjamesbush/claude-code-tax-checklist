@@ -97,8 +97,14 @@ def try_import(module_name):
 
 def install_package(pip_name):
     print(f'Installing {pip_name}...')
-    subprocess.check_call([sys.executable, '-m', 'pip', 'install', pip_name],
-                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', pip_name],
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except subprocess.CalledProcessError:
+        # Retry with --break-system-packages (required on modern Debian/Ubuntu)
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install',
+                              '--break-system-packages', pip_name],
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 # Conditional installs
 if found_exts & PDF_EXTS:
@@ -182,8 +188,9 @@ for relpath in sorted(all_files):
                 pix.save(os.path.join(outdir, png_name))
                 manifest.append(f'{png_name} <- {relpath} (page {i+1})')
                 total_outputs += 1
+            page_count = len(doc)
             doc.close()
-            print(f'OK {len(doc):3d}p | {relpath}')
+            print(f'OK {page_count:3d}p | {relpath}')
 
         # --- Images ---
         elif ext in IMAGE_EXTS:

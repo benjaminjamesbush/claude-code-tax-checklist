@@ -11,7 +11,7 @@ Build a comprehensive, deduplicated tax document checklist from historical tax r
 
 **Do not trust filenames.** A file named `mortgage 1098.pdf` may contain a 1099-INT bundled on page 2. A file named `Misc.pdf` may contain five different forms. Every page of every file must be examined — filenames are hints, not facts.
 
-**Nothing is assumed irrelevant.** Dental receipts, payment confirmations, state notices, letters, and bundled packets should all be assumed to contain checklist-worthy items.
+**Nothing is assumed irrelevant.** Dental receipts, payment confirmations, state notices, letters, test documents, and bundled packets should all be assumed to contain checklist-worthy items. Do not skip or dismiss any document based on its content — if something seems unimportant, include it in an appendix at the bottom of the checklist rather than omitting it.
 
 ---
 
@@ -63,7 +63,15 @@ Record the total output count from the script — you need this for verification
 
 **Do not read any PNG files in the main conversation context.** Use subagents for all image reading. Reading images here will overflow the context window.
 
-Launch one subagent per file in `.tmp_prepared/` — one agent, one file. Run 3 subagents in parallel for throughput.
+### Why One Subagent Per Page (Do NOT Re-Batch)
+
+Each file in `.tmp_prepared/` is a single page. Launch one subagent per file — one agent, one page, one image. Run 3 in parallel.
+
+**Do NOT re-group pages into larger batches.** This is the most common failure mode: an agent sees 1000+ files, decides "one per file is too slow," batches them by year or document, and sends 60-80 images to a single subagent. The subagent then silently skips pages — in testing, batches of 77 pages achieved only 35% coverage. The per-page approach exists to make skipping structurally impossible.
+
+**Expected runtime:** ~60-90 minutes for a typical collection (1000-1500 pages at 3 parallel). This is acceptable — the checklist runs once per year and missing a single form can mean a missed deduction or IRS notice.
+
+**Expected cost:** ~$1-2 in Haiku API calls. Cheap insurance for completeness.
 
 ### Subagent Prompt Template (PNG files)
 
@@ -102,6 +110,17 @@ Maintain a running tally:
 - Expected outputs (from Step 2 output count)
 - Examined pages (from subagent results)
 - These MUST match at the end. If they don't, re-launch subagents and troubleshoot as needed — never read images directly in the main context.
+
+### Verification Check
+
+After all subagents complete, programmatically verify 100% coverage:
+
+1. List every file in `.tmp_prepared/` (excluding `manifest.txt`)
+2. Compare against the set of files that were actually sent to subagents
+3. Any file not covered = a gap. Re-launch a subagent for each missing file.
+4. Do not proceed to Step 4 until coverage is confirmed at 100%.
+
+This catches silent failures — subagents that errored out, files that were accidentally skipped in the iteration, or off-by-one bugs in batching logic.
 
 ## Step 4: Compile and Write Checklist
 
