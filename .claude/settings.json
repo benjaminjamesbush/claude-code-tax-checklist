@@ -9,6 +9,15 @@
             "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/check-examination-subagent.py\" || python \"$CLAUDE_PROJECT_DIR/.claude/hooks/check-examination-subagent.py\""
           }
         ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/block-script-reading.py\" || python \"$CLAUDE_PROJECT_DIR/.claude/hooks/block-script-reading.py\""
+          }
+        ]
       }
     ]
   }

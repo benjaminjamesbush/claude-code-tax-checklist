@@ -15,6 +15,14 @@ Build a comprehensive, deduplicated tax document checklist from historical tax r
 
 ---
 
+## Context Management
+
+**Do not read the skill scripts (scan.py, prepare.py, cleanup.py).** Just run them. Reading scripts wastes context on code you don't need to understand.
+
+**Subagent results must be written to files, not returned to the main context.** With 1000+ subagent launches, returned results will overflow the context window. See Step 3 for details.
+
+---
+
 ## Step 1: Exploratory Scan
 
 **Do not open or read any files during this step.** Only collect file paths, names, and directory structure. Reading file contents here will overflow the context window.
@@ -73,6 +81,15 @@ Each file in `.tmp_prepared/` is a single page. Launch one subagent per file —
 
 **Expected cost:** ~$1-2 in Haiku API calls. Cheap insurance for completeness.
 
+### Subagent Output: Write to Files (Do NOT Return to Main Context)
+
+Before launching subagents, create the findings directory:
+```
+mkdir -p tax-documents/.tmp_prepared/findings
+```
+
+Each subagent must **write its findings to a file** rather than returning them as a response. With 1000+ subagents, returned results will accumulate in the main conversation and overflow the context window. This is not optional.
+
 ### Subagent Prompt Template (PNG files)
 
 ```
@@ -85,8 +102,20 @@ Read the following PNG image of a scanned tax document page and identify:
 
 File: <path_to_png>
 
-Return a brief structured summary of the page. Be concise.
+Write your findings to: <path_to_findings_txt>
+
+Use this exact format:
+file: <filename>
+form_type: <form type or document type>
+institution: <institution or source>
+person: <person or account holder>
+tax_year: <year>
+details: <any other relevant details>
+
+Be concise. Write the file and confirm done.
 ```
+
+Replace `<path_to_findings_txt>` with `tax-documents/.tmp_prepared/findings/<filename_without_ext>.findings.txt`.
 
 ### Subagent Prompt Template (TXT files)
 
@@ -100,33 +129,40 @@ Read the following text extracted from a tax document and identify:
 
 File: <path_to_txt>
 
-Return a brief structured summary. Be concise.
+Write your findings to: <path_to_findings_txt>
+
+Use this exact format:
+file: <filename>
+form_type: <form type or document type>
+institution: <institution or source>
+person: <person or account holder>
+tax_year: <year>
+details: <any other relevant details>
+
+Be concise. Write the file and confirm done.
 ```
 
 Use `model: haiku` for subagents to minimize cost — form identification doesn't require the most capable model.
 
-### Tracking
-Maintain a running tally:
-- Expected outputs (from Step 2 output count)
-- Examined pages (from subagent results)
-- These MUST match at the end. If they don't, re-launch subagents and troubleshoot as needed — never read images directly in the main context.
+### Tracking and Verification
 
-### Verification Check
+Track only counts in the main context — not findings content:
+- Expected outputs (from Step 2 output count)
+- Subagents launched (increment as you go)
+- These MUST match at the end. If they don't, re-launch subagents and troubleshoot as needed — never read images directly in the main context.
 
 After all subagents complete, programmatically verify 100% coverage:
 
-1. List every file in `.tmp_prepared/` (excluding `manifest.txt`)
-2. Compare against the set of files that were actually sent to subagents
-3. Any file not covered = a gap. Re-launch a subagent for each missing file.
+1. List every file in `.tmp_prepared/` (excluding `manifest.txt` and the `findings/` directory)
+2. List every `.findings.txt` in `.tmp_prepared/findings/`
+3. Any prepared file without a corresponding findings file = a gap. Re-launch a subagent for it.
 4. Do not proceed to Step 4 until coverage is confirmed at 100%.
-
-This catches silent failures — subagents that errored out, files that were accidentally skipped in the iteration, or off-by-one bugs in batching logic.
 
 ## Step 4: Compile and Write Checklist
 
 ### Merge All Findings
 
-Combine all results from visual examination (Step 3).
+Read all `.findings.txt` files from `.tmp_prepared/findings/`. These contain the structured results from every subagent examination.
 
 Extract every unique **institution + form type + account** combination.
 
