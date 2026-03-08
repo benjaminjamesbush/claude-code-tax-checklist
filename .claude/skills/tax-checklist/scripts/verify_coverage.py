@@ -27,12 +27,25 @@ for f in os.listdir(base):
     if f.endswith('.png') or f.endswith('.txt'):
         prepared.add(f)
 
-# Collect findings files
+# Collect findings files, checking for non-empty and required fields
 findings = set()
+empty = []
+malformed = []
+required_fields = {'file:', 'form_type:', 'institution:'}
 for f in os.listdir(findings_dir):
     if f.endswith('.findings.txt'):
-        # Strip .findings.txt to get the base name, then re-add extension
         base_name = f[:-len('.findings.txt')]
+        fpath = os.path.join(findings_dir, f)
+        # Check non-empty
+        if os.path.getsize(fpath) == 0:
+            empty.append(f)
+            continue
+        # Check required fields present
+        content = open(fpath).read().lower()
+        missing_fields = [field for field in required_fields if field not in content]
+        if missing_fields:
+            malformed.append((f, missing_fields))
+            continue
         # Find which extension the prepared file has
         if base_name + '.png' in prepared:
             findings.add(base_name + '.png')
@@ -48,10 +61,27 @@ print(f'Prepared files: {len(prepared)}')
 print(f'Findings files: {len(findings)}')
 print(f'Coverage: {len(findings)}/{len(prepared)} ({100*len(findings)//len(prepared) if prepared else 0}%)')
 
+has_issues = False
+
+if empty:
+    print(f'\nEMPTY ({len(empty)} files):')
+    for f in empty:
+        print(f'  {f}')
+    has_issues = True
+
+if malformed:
+    print(f'\nMALFORMED ({len(malformed)} files):')
+    for f, fields in malformed:
+        print(f'  {f} — missing: {", ".join(fields)}')
+    has_issues = True
+
 if missing:
     print(f'\nMISSING ({len(missing)} files):')
     for f in missing:
         print(f'  {f}')
+    has_issues = True
+
+if has_issues:
     sys.exit(1)
 else:
     print('\nAll files covered. OK to proceed.')
