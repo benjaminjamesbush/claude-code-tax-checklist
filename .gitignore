@@ -4,3 +4,7 @@
 # Temporary processing directories
 .tmp_prepared/
 .tmp_zip_extracted/
+
+# Test notes (session-specific)
+test-notes*.md
+test-docs.md
