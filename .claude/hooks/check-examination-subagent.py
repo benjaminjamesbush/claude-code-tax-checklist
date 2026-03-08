@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 PreToolUse hook for the Task tool. Ensures examination subagents follow
-the one-file-per-agent rule from SKILL.md:
-  - Must reference exactly one file from .tmp_prepared/
+the batch size rules from SKILL.md:
+  - Must reference at most 5 files from .tmp_prepared/
   - Must not reference raw PDFs or files from tax-documents/ directly
 
 Only checks prompts that look like document examination tasks.
@@ -12,6 +12,8 @@ Non-examination subagents pass through unchecked.
 import json
 import re
 import sys
+
+MAX_FILES_PER_SUBAGENT = 5
 
 data = json.load(sys.stdin)
 prompt = data.get("tool_input", {}).get("prompt", "")
@@ -53,13 +55,13 @@ if direct:
     )
     sys.exit(2)
 
-# Rule 3: Count distinct .tmp_prepared/ file references
+# Rule 3: Count distinct .tmp_prepared/ file references (max 5)
 files = set(re.findall(r"\.tmp_prepared/[\w._-]+\.(?:png|txt)", prompt))
-if len(files) > 1:
+if len(files) > MAX_FILES_PER_SUBAGENT:
     print(
-        f"Each examination subagent must examine exactly ONE file from "
-        f".tmp_prepared/. You sent {len(files)} files. Launch one subagent "
-        f"per file with 3 in parallel. See 'Why One Subagent Per Page' in "
+        f"Each examination subagent must examine at most "
+        f"{MAX_FILES_PER_SUBAGENT} files from .tmp_prepared/. "
+        f"You sent {len(files)} files. See 'Subagent Batch Size' in "
         f"SKILL.md.",
         file=sys.stderr,
     )

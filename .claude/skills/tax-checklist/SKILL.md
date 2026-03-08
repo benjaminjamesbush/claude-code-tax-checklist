@@ -19,7 +19,7 @@ Build a comprehensive, deduplicated tax document checklist from historical tax r
 
 **Do not read the skill scripts (scan.py, prepare.py, cleanup.py).** Just run them. Reading scripts wastes context on code you don't need to understand.
 
-**Subagent results must be written to files, not returned to the main context.** With 1000+ subagent launches, returned results will overflow the context window. See Step 3 for details.
+**Subagent results must be written to files, not returned to the main context.** With hundreds of subagent launches, returned results will overflow the context window. See Step 3 for details.
 
 ---
 
@@ -71,15 +71,15 @@ Record the total output count from the script — you need this for verification
 
 **Do not read any PNG files in the main conversation context.** Use subagents for all image reading. Reading images here will overflow the context window.
 
-### Why One Subagent Per Page (Do NOT Re-Batch)
+### Subagent Batch Size: 5 Pages Per Subagent
 
-Each file in `.tmp_prepared/` is a single page. Launch one subagent per file — one agent, one page, one image. Launch 10 simultaneously.
+Each file in `.tmp_prepared/` is a single page. Group them into batches of **5 pages per subagent**. Launch **10 subagents simultaneously**.
 
-**Do NOT re-group pages into larger batches.** This is the most common failure mode: an agent sees 1000+ files, decides "one per file is too slow," batches them by year or document, and sends 60-80 images to a single subagent. The subagent then silently skips pages — in testing, batches of 77 pages achieved only 35% coverage. The per-page approach exists to make skipping structurally impossible.
+**Do NOT use larger batches.** In testing, batches of 77 pages achieved only 35% coverage — subagents silently skip pages in large batches. 5 pages is small enough that every page gets examined, while reducing total API calls to a manageable level.
 
-**Expected runtime:** ~30-45 minutes for a typical collection (1000-1500 pages at 10 parallel). This is acceptable — the checklist runs once per year and missing a single form can mean a missed deduction or IRS notice.
+**Expected runtime:** ~15-30 minutes for a typical collection (1000-1500 pages, ~240 subagents at 10 parallel).
 
-**Expected cost:** ~$1-2 in Haiku API calls. Cheap insurance for completeness.
+**Expected cost:** ~$0.50-1 in Haiku API calls.
 
 ### Subagent Output: Write to Files (Do NOT Return to Main Context)
 
@@ -88,23 +88,36 @@ Before launching subagents, create the findings directory:
 mkdir -p tax-documents/.tmp_prepared/findings
 ```
 
-Each subagent must **write its findings to a file** rather than returning them as a response. With 1000+ subagents, returned results will accumulate in the main conversation and overflow the context window. This is not optional.
+Each subagent must **write its findings to a file** rather than returning them as a response. With hundreds of subagents, returned results will accumulate in the main conversation and overflow the context window. This is not optional.
 
-### Subagent Prompt Template (PNG files)
+### Subagent Prompt Template
+
+Each subagent receives up to 5 files. Use one prompt for all files in the batch — PNGs and TXTs can be mixed.
 
 ```
-Read the following PNG image of a scanned tax document page and identify:
+Examine each of the following tax document pages. For each file, identify:
 - Form type / document type (e.g., "1099-INT", "dental receipt", "payment confirmation")
 - Institution / source
 - Person / account holder
 - Tax year
 - Any other tax-relevant details (dollar amounts, account numbers, deadlines)
 
-File: <path_to_png>
+Files to examine:
+1. <path_to_file_1>
+2. <path_to_file_2>
+3. <path_to_file_3>
+4. <path_to_file_4>
+5. <path_to_file_5>
 
-Write your findings to: <path_to_findings_txt>
+For EACH file, write a separate findings file. Use these exact paths and format:
 
-Use this exact format:
+Write to: <path_to_findings_1>
+Write to: <path_to_findings_2>
+Write to: <path_to_findings_3>
+Write to: <path_to_findings_4>
+Write to: <path_to_findings_5>
+
+Each findings file must use this exact format:
 file: <filename>
 form_type: <form type or document type>
 institution: <institution or source>
@@ -112,51 +125,27 @@ person: <person or account holder>
 tax_year: <year>
 details: <any other relevant details>
 
-Be concise. Write the file and confirm done.
+You MUST write one findings file per input file — do not skip any.
+Be concise. Write all files and confirm done.
 ```
 
-Replace `<path_to_findings_txt>` with `tax-documents/.tmp_prepared/findings/<filename_without_ext>.findings.txt`.
+Replace each `<path_to_findings_N>` with `tax-documents/.tmp_prepared/findings/<filename_without_ext>.findings.txt`.
 
-### Subagent Prompt Template (TXT files)
-
-```
-Read the following text extracted from a tax document and identify:
-- Form type / document type (e.g., "1099-INT", "dental receipt", "payment confirmation")
-- Institution / source
-- Person / account holder
-- Tax year
-- Any other tax-relevant details (dollar amounts, account numbers, deadlines)
-
-File: <path_to_txt>
-
-Write your findings to: <path_to_findings_txt>
-
-Use this exact format:
-file: <filename>
-form_type: <form type or document type>
-institution: <institution or source>
-person: <person or account holder>
-tax_year: <year>
-details: <any other relevant details>
-
-Be concise. Write the file and confirm done.
-```
-
-Use `model: haiku` for subagents to minimize cost — form identification doesn't require the most capable model.
+Use the **`tax-examiner`** subagent for all examination tasks. It is pre-configured with `model: haiku` and restricted to `Read` and `Write` tools only — no Bash, no file listing, no exploration. Do not use generic subagents for examination.
 
 ### Tracking and Verification
 
 Track only counts in the main context — not findings content:
 - Expected outputs (from Step 2 output count)
 - Subagents launched (increment as you go)
-- These MUST match at the end. If they don't, re-launch subagents and troubleshoot as needed — never read images directly in the main context.
 
-After all subagents complete, programmatically verify 100% coverage:
+After all subagents complete, run the verification script:
 
-1. List every file in `.tmp_prepared/` (excluding `manifest.txt` and the `findings/` directory)
-2. List every `.findings.txt` in `.tmp_prepared/findings/`
-3. Any prepared file without a corresponding findings file = a gap. Re-launch a subagent for it.
-4. Do not proceed to Step 4 until coverage is confirmed at 100%.
+```
+python ${CLAUDE_SKILL_DIR}/scripts/verify_coverage.py
+```
+
+This script compares prepared files against findings files and reports any gaps. If it exits non-zero, re-launch subagents for the missing files listed in its output. **Do not proceed to Step 4 until the script exits with code 0 (100% coverage).**
 
 ## Step 4: Compile and Write Checklist
 
